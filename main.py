@@ -13,7 +13,9 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 app.config['SQLALCHEMY_DATABASE_URI'] = "mysql://root:@localhost/indiacredit"
 db = SQLAlchemy(app)
 
+FERNET_KEY = "_2S4Rdhycz25AfVaQHRMiFTrpIdsG66h_2FPyvyLM2k="
+
 from model import *
 from controlller import *
 
-app.run(debug=True)
+app.run(threaded=True, debug=True)
