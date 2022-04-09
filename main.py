@@ -18,4 +18,4 @@ FERNET_KEY = "_2S4Rdhycz25AfVaQHRMiFTrpIdsG66h_2FPyvyLM2k="
 from model import *
 from controlller import *
 
-app.run(threaded=True, debug=True)
+app.run(threaded=True, debug=True, port=5003)

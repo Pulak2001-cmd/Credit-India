@@ -7,6 +7,8 @@ from sqlalchemy import and_
 import random, string
 from functools import wraps
 
+FERNET_KEY = Fernet.generate_key()
+
 class User(db.Model):
     __tablename__="users"
     id=db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -73,12 +75,14 @@ class Signup(Resource):
             return errorMessage("name is required")
         fernet=Fernet(FERNET_KEY)
         en_pass=fernet.encrypt(bytes(password,'utf-8'))
+        print(en_pass)
         new_user=User(phone=phone,password=en_pass,name=name)
         db.session.add(new_user)
         db.session.commit()
         token=''.join(random.choices(
             string.ascii_uppercase+string.digits,k=50))
         new_session=Session(user_id=new_user.id,token=token)
+        print(new_user.password)
         db.session.add(new_session)
         db.session.commit()
         result={
@@ -101,7 +105,40 @@ class LoginWithPassword(Resource):
             password = data["password"]
         else:
             return errorMessage("password is required")
-        search_user = User.query.filter(and_(User.email == user_details, User.is_delete == 0))
+        token=''.join(random.choices(
+            string.ascii_uppercase+string.digits,k=50))
+        search_user = User.query.filter(and_(User.email == user_details, User.is_delete == 0)).first()
+        if search_user is None:
+            search_user = User.query.filter(and_(User.phone == user_details, User.is_delete == 0)).first()
+        if search_user is None:
+            return errorMessage("User does not exists")
+        password_decode = ""
+        if search_user.password is not None:
+            
+            fernet=Fernet(FERNET_KEY)
+            msg=search_user.password
+            print(msg)
+            msg=bytes(msg,'utf-8')
+            print(msg)
+            decrypt_pass= fernet.decrypt(msg)
+            print("hiiiiiiiiiiii")
+            password_decode=decrypt_pass.decode('utf-8')
+        if password_decode == password:
+            new_session = Session(user_id = search_user.id, token=token)
+            db.session.add(new_session)
+            db.session.commit()
+        else:
+            return errorMessage("Wrong Password")
+        result = {
+            "error": "",
+            "status": True,
+            "name": search_user.name,
+            "phone": search_user.phone,
+            "email": search_user.email,
+            "token": token
+        }
+        return jsonify(result)
+
 
 api.add_resource(Signup, '/v1/api/signup')
-api.add_resource(hello, '/v1/api/hello')
+api.add_resource(LoginWithPassword, '/v1/api/loginwinpass')
