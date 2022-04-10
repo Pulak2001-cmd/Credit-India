@@ -2,12 +2,10 @@ from model import *
 from main import db, api, FERNET_KEY
 from flask_restful import Api, Resource
 from flask import Flask, jsonify, request, Response
-from cryptography.fernet import Fernet
 from sqlalchemy import and_
-import random, string
+import random, string, bcrypt
 from functools import wraps
 
-FERNET_KEY = Fernet.generate_key()
 
 class User(db.Model):
     __tablename__="users"
@@ -15,7 +13,7 @@ class User(db.Model):
     name=db.Column("name", db.String(50), default=None)
     phone=db.Column("phone",db.String(15),default=None)
     email=db.Column("email",db.String(50),default=None)
-    password=db.Column("password",db.String(50),default=None)
+    password=db.Column("password",db.String(500),default=None)
     is_delete=db.Column("is_delete",db.Boolean,default=0)
     wallet=db.Column("wallet",db.Integer,default=0)
     
@@ -25,6 +23,18 @@ class Session(db.Model):
     token=db.Column(db.String,primary_key=True)
     user_id=db.Column(db.String,primary_key=True)
     is_delete=db.Column("is_delete",db.Boolean,default=0)
+
+def get_hashed_password(plain_text_password):
+    # Hash a password for the first time
+    #   (Using bcrypt, the salt is saved into the hash itself)
+    plain_text_password = bytes(plain_text_password, 'utf-8')
+    return bcrypt.hashpw(plain_text_password, bcrypt.gensalt())
+
+def check_password(plain_text_password, hashed_password):
+    # Check hashed password. Using bcrypt, the salt is saved into the hash itself
+    plain_text_password = bytes(plain_text_password, 'utf-8')
+    hashed_password = bytes(hashed_password, 'utf-8')
+    return bcrypt.checkpw(plain_text_password, hashed_password)
 
 def errorMessage(text):
     result={
@@ -62,6 +72,7 @@ class Signup(Resource):
         data=request.get_json()
         if "phone" in data.keys():
             phone=data["phone"]
+            phone = "+91"+str(phone)
         else:
             return errorMessage("phone number is required")
 
@@ -73,10 +84,16 @@ class Signup(Resource):
             name=data["name"]
         else:
             return errorMessage("name is required")
-        fernet=Fernet(FERNET_KEY)
-        en_pass=fernet.encrypt(bytes(password,'utf-8'))
-        print(en_pass)
-        new_user=User(phone=phone,password=en_pass,name=name)
+        if "email" in data.keys():
+            email=data["email"]
+        else:
+            return errorMessage("email is required")
+        get_user_by_email = User.query.filter(and_(User.email == email, User.is_delete == 0)).first()
+        get_user_by_phone = User.query.filter(and_(User.phone == phone, User.is_delete == 0)).first()
+        if get_user_by_phone is not None or get_user_by_email is not None:
+            return errorMessage("Your credentials already exists")
+        en_pass = get_hashed_password(password)
+        new_user=User(phone=phone,password=en_pass,name=name, email=email)
         db.session.add(new_user)
         db.session.commit()
         token=''.join(random.choices(
@@ -114,16 +131,8 @@ class LoginWithPassword(Resource):
             return errorMessage("User does not exists")
         password_decode = ""
         if search_user.password is not None:
-            
-            fernet=Fernet(FERNET_KEY)
-            msg=search_user.password
-            print(msg)
-            msg=bytes(msg,'utf-8')
-            print(msg)
-            decrypt_pass= fernet.decrypt(msg)
-            print("hiiiiiiiiiiii")
-            password_decode=decrypt_pass.decode('utf-8')
-        if password_decode == password:
+            password_decode = check_password(password, search_user.password)
+        if password_decode == True:
             new_session = Session(user_id = search_user.id, token=token)
             db.session.add(new_session)
             db.session.commit()
@@ -141,4 +150,4 @@ class LoginWithPassword(Resource):
 
 
 api.add_resource(Signup, '/v1/api/signup')
-api.add_resource(LoginWithPassword, '/v1/api/loginwinpass')
+api.add_resource(LoginWithPassword, '/v1/api/loginwithpass')
