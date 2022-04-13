@@ -23,6 +23,8 @@ class Session(db.Model):
     token=db.Column(db.String,primary_key=True)
     user_id=db.Column(db.String,primary_key=True)
     is_delete=db.Column("is_delete",db.Boolean,default=0)
+    user = db.relationship('User', foreign_keys=user_id,
+                           primaryjoin="Session.user_id==User.id")
 
 def get_hashed_password(plain_text_password):
     # Hash a password for the first time
@@ -53,7 +55,7 @@ def authenticate_api(f):
         except:
             return Response('Authentication Error! Auth Token is missing', 401, {'WWW-Authenticate': 'API token error'})
         authObj = Session.query.filter(and_(Session.token == authtoken, Session.is_delete == 0)).first()
-        print(authObj)
+        # print(authObj)
         if not authObj:
             return Response('Authentication Error! Token is invalid or does not belong to the user', 401,
                             {'WWW-Authenticate': 'API token error'})
@@ -126,7 +128,7 @@ class LoginWithPassword(Resource):
             string.ascii_uppercase+string.digits,k=50))
         search_user = User.query.filter(and_(User.email == user_details, User.is_delete == 0)).first()
         if search_user is None:
-            search_user = User.query.filter(and_(User.phone == user_details, User.is_delete == 0)).first()
+            search_user = User.query.filter(and_(User.phone == "+91"+ str(user_details), User.is_delete == 0)).first()
         if search_user is None:
             return errorMessage("User does not exists")
         password_decode = ""
@@ -148,6 +150,21 @@ class LoginWithPassword(Resource):
         }
         return jsonify(result)
 
+class Logout(Resource):
+    @authenticate_api
+    def get(self, **kwargs):
+        session = kwargs['session']
+        get_session = Session.query.filter(and_(Session.id == session.id, Session.is_delete == 0)).first()
+        print(get_session)
+        db.session.delete(get_session)
+        db.session.commit()
+        result = {
+            "error": "",
+            "status": True
+        }
+        return jsonify(result)
+
 
 api.add_resource(Signup, '/v1/api/signup')
 api.add_resource(LoginWithPassword, '/v1/api/loginwithpass')
+api.add_resource(Logout, '/v1/api/logout')
