@@ -164,7 +164,84 @@ class Logout(Resource):
         }
         return jsonify(result)
 
+class LoginWithAccount(Resource):
+    def post(self):
+        data = request.get_json()
+        if "email" in data.keys():
+            email = data["email"]
+        else:
+            return errorMessage("email is required")
+        if "name" in data.keys():
+            name = data["name"]
+        else:
+            name= None
+        token=''.join(random.choices(
+            string.ascii_uppercase+string.digits,k=50))
+        get_user = User.query.filter(and_(User.email == email, User.is_delete == 0)).first()
+        if get_user is not None:
+            new_session = Session(token=token, user_id=get_user.id)
+            db.session.add(new_session)
+            db.session.commit()
+            result = {
+                "error": "",
+                "status": True,
+                "name": get_user.name,
+                "phone": get_user.phone,
+                "email": get_user.email,
+                "token": token
+            }
+            return jsonify(result)
+        else:
+            add_user = User(email=email, name=name)
+            db.session.add(add_user)
+            db.session.commit()
+            new_session = Session(user_id = add_user.id, token=token)
+            db.session.add(new_session)
+            db.session.commit()
+            result = {
+                "error": "",
+                "status": True,
+                "name": add_user.name,
+                "email": add_user.email,
+                "token": token
+            }
+            return jsonify(result)
+
+class ProfileInfo(Resource):
+    @authenticate_api
+    def get(self, **kwargs):
+        user = kwargs["user"]
+        result = {
+            "id": user.id,
+            "name": user.name,
+            "phone": user.phone,
+            "email": user.email
+        }
+        return jsonify(result)
+
+class UpdateProfile(Resource):
+    @authenticate_api
+    def post(self, **kwargs):
+        user = kwargs["user"]
+        data = request.get_json()
+        if "user_name" in data.keys():
+            name = data["user_name"]
+        else:
+            name = None
+        if name is not None:
+            user.name = name
+            db.session.add(user)
+            db.session.commit()
+        result = {
+            "error": "",
+            "status": True
+        }
+        return jsonify(result)
+
 
 api.add_resource(Signup, '/v1/api/signup')
 api.add_resource(LoginWithPassword, '/v1/api/loginwithpass')
 api.add_resource(Logout, '/v1/api/logout')
+api.add_resource(LoginWithAccount, '/v1/api/o_login')
+api.add_resource(ProfileInfo, '/v1/api/profile')
+api.add_resource(UpdateProfile, '/v1/api/updateprofile')
